@@ -1,0 +1,45 @@
+# build
+/build/
+build/
+out/
+cmake-build-*/
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+CTestTestfile.cmake
+compile_commands.json
+
+# binaries
+*.dll
+*.exe
+*.lib
+*.exp
+*.pdb
+*.ilk
+*.obj
+*.o
+*.a
+*.so
+
+# msvc / vs
+.vs/
+*.user
+*.suo
+*.vcxproj.user
+*.aps
+
+# python analysis
+__pycache__/
+*.pyc
+analysis/pydeps/
+
+# dumps / captures
+*.bin
+*.dmp
+*.memory.bin
+
+# os / editor
+.idea/
+.vscode/
+Thumbs.db
+.DS_Store
