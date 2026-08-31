@@ -30,6 +30,10 @@ NAY_API bool nay_client_is_running(void);
 NAY_API bool nay_can_inject(void);
 NAY_API void nay_fullbright_set_enabled(bool enabled);
 NAY_API void nay_fullbright_set_level(float level);
+NAY_API bool nay_client_bind_packet_sender(void *client_instance);
+NAY_API bool nay_client_can_send_packets(void);
+NAY_API bool nay_client_send_packet(void *packet);
+NAY_API bool nay_client_send_packet_to_server(void *packet);
 
 #ifdef __cplusplus
 }

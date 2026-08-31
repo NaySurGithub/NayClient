@@ -42,6 +42,7 @@ bool nay_inject_client(nay_injection *injection)
     WCHAR event_name[96];
     WCHAR unload_name[96];
     WCHAR nofire_name[96];
+    WCHAR nohurtcam_name[96];
     HANDLE process = NULL;
     HANDLE thread = NULL;
     LPVOID remote_path = NULL;
@@ -78,17 +79,22 @@ bool nay_inject_client(nay_injection *injection)
     swprintf_s(event_name, 96, L"Local\\NayClient.Fullbright.Toggle.%lu", injection->pid);
     swprintf_s(unload_name, 96, L"Local\\NayClient.Unload.%lu", injection->pid);
     swprintf_s(nofire_name, 96, L"Local\\NayClient.NoFire.Toggle.%lu", injection->pid);
+    swprintf_s(nohurtcam_name, 96, L"Local\\NayClient.NoHurtCam.Toggle.%lu", injection->pid);
     for (unsigned attempt = 0; attempt < 50; ++attempt) {
         injection->toggle_event = OpenEventW(EVENT_MODIFY_STATE, FALSE, event_name);
         injection->unload_event = OpenEventW(EVENT_MODIFY_STATE, FALSE, unload_name);
         injection->nofire_event = OpenEventW(EVENT_MODIFY_STATE, FALSE, nofire_name);
-        if (injection->toggle_event && injection->nofire_event && injection->unload_event) break;
+        injection->nohurtcam_event = OpenEventW(EVENT_MODIFY_STATE, FALSE, nohurtcam_name);
+        if (injection->toggle_event && injection->nofire_event && injection->nohurtcam_event
+            && injection->unload_event) break;
         if (injection->toggle_event) CloseHandle(injection->toggle_event);
         if (injection->unload_event) CloseHandle(injection->unload_event);
         if (injection->nofire_event) CloseHandle(injection->nofire_event);
+        if (injection->nohurtcam_event) CloseHandle(injection->nohurtcam_event);
         injection->toggle_event = NULL;
         injection->unload_event = NULL;
         injection->nofire_event = NULL;
+        injection->nohurtcam_event = NULL;
         Sleep(100);
     }
 
@@ -96,7 +102,8 @@ cleanup:
     if (thread) CloseHandle(thread);
     if (remote_path) VirtualFreeEx(process, remote_path, 0, MEM_RELEASE);
     if (process) CloseHandle(process);
-    return injection->toggle_event && injection->nofire_event && injection->unload_event;
+    return injection->toggle_event && injection->nofire_event && injection->nohurtcam_event
+        && injection->unload_event;
 }
 
 bool nay_injection_toggle_nofire(nay_injection *injection)
@@ -109,15 +116,22 @@ bool nay_injection_toggle_fullbright(nay_injection *injection)
     return injection && injection->toggle_event && SetEvent(injection->toggle_event);
 }
 
+bool nay_injection_toggle_nohurtcam(nay_injection *injection)
+{
+    return injection && injection->nohurtcam_event && SetEvent(injection->nohurtcam_event);
+}
+
 void nay_injection_close(nay_injection *injection)
 {
     if (!injection) return;
     if (injection->unload_event) SetEvent(injection->unload_event);
     if (injection->toggle_event) CloseHandle(injection->toggle_event);
     if (injection->nofire_event) CloseHandle(injection->nofire_event);
+    if (injection->nohurtcam_event) CloseHandle(injection->nohurtcam_event);
     if (injection->unload_event) CloseHandle(injection->unload_event);
     injection->toggle_event = NULL;
     injection->nofire_event = NULL;
+    injection->nohurtcam_event = NULL;
     injection->unload_event = NULL;
     injection->pid = 0;
 }

@@ -2,7 +2,11 @@
 
 #include "nay/modules/fullbright/fullbright.h"
 #include "nay/modules/nofire/nofire.h"
+#include "nay/modules/nohurtcam/nohurtcam.h"
+#include "nay/modules/playernotifier/playernotifier.h"
 #include "nay/modules/module/module.h"
+#include "nay/network/packet_sender.h"
+#include "nay/network/injection_notice.h"
 #include "nay/platform/minecraft_version.h"
 
 #define WIN32_LEAN_AND_MEAN
@@ -14,12 +18,16 @@ typedef struct nay_client_state {
     bool solo_only;
     nay_fullbright fullbright;
     nay_nofire nofire;
+    nay_nohurtcam nohurtcam;
+    nay_playernotifier playernotifier;
+    nay_packet_sender packet_sender;
 } nay_client_state;
 
 static nay_client_state g_client;
 static HANDLE g_stop_event;
 static HANDLE g_toggle_event;
 static HANDLE g_nofire_event;
+static HANDLE g_nohurtcam_event;
 static HANDLE g_unload_event;
 static HMODULE g_instance;
 
@@ -28,6 +36,7 @@ static DWORD WINAPI nay_worker(LPVOID unused)
     WCHAR event_name[96];
     WCHAR unload_name[96];
     WCHAR nofire_name[96];
+    WCHAR nohurtcam_name[96];
     nay_client_config config = {true, false, 9999.0f};
     (void)unused;
     swprintf_s(
@@ -36,13 +45,15 @@ static DWORD WINAPI nay_worker(LPVOID unused)
     g_toggle_event = CreateEventW(NULL, FALSE, FALSE, event_name);
     swprintf_s(nofire_name, 96, L"Local\\NayClient.NoFire.Toggle.%lu", GetCurrentProcessId());
     g_nofire_event = CreateEventW(NULL, FALSE, FALSE, nofire_name);
+    swprintf_s(nohurtcam_name, 96, L"Local\\NayClient.NoHurtCam.Toggle.%lu", GetCurrentProcessId());
+    g_nohurtcam_event = CreateEventW(NULL, FALSE, FALSE, nohurtcam_name);
     swprintf_s(unload_name, 96, L"Local\\NayClient.Unload.%lu", GetCurrentProcessId());
     g_unload_event = CreateEventW(NULL, FALSE, FALSE, unload_name);
     g_stop_event = CreateEventW(NULL, TRUE, FALSE, NULL);
-    if (!g_toggle_event || !g_nofire_event || !g_unload_event || !g_stop_event || !nay_client_start(&config)) return 1;
+    if (!g_toggle_event || !g_nofire_event || !g_nohurtcam_event || !g_unload_event || !g_stop_event || !nay_client_start(&config)) return 1;
     for (;;) {
-        HANDLE events[4] = {g_stop_event, g_toggle_event, g_nofire_event, g_unload_event};
-        DWORD result = WaitForMultipleObjects(4, events, FALSE, INFINITE);
+        HANDLE events[5] = {g_stop_event, g_toggle_event, g_nofire_event, g_nohurtcam_event, g_unload_event};
+        DWORD result = WaitForMultipleObjects(5, events, FALSE, INFINITE);
         if (result == WAIT_OBJECT_0) break;
         if (result == WAIT_OBJECT_0 + 1) {
             (void)nay_fullbright_toggle(&g_client.fullbright);
@@ -51,13 +62,18 @@ static DWORD WINAPI nay_worker(LPVOID unused)
             (void)nay_nofire_toggle(&g_client.nofire);
         }
         if (result == WAIT_OBJECT_0 + 3) {
+            (void)nay_nohurtcam_toggle(&g_client.nohurtcam);
+        }
+        if (result == WAIT_OBJECT_0 + 4) {
             nay_client_stop();
             CloseHandle(g_toggle_event);
             CloseHandle(g_nofire_event);
+            CloseHandle(g_nohurtcam_event);
             CloseHandle(g_unload_event);
             CloseHandle(g_stop_event);
             g_toggle_event = NULL;
             g_nofire_event = NULL;
+            g_nohurtcam_event = NULL;
             g_unload_event = NULL;
             g_stop_event = NULL;
             FreeLibraryAndExitThread(g_instance, 0);
@@ -91,6 +107,11 @@ bool nay_client_start(const nay_client_config *config)
         config->fullbright_level
     );
     nay_nofire_init(&g_client.nofire, false);
+    nay_nohurtcam_init(&g_client.nohurtcam, false);
+    nay_playernotifier_init(&g_client.playernotifier, true);
+    nay_packet_sender_init(&g_client.packet_sender, NAY_PACKET_SENDER_OFFSET_1_26);
+    nay_injection_notice_set_packet_observer(nay_playernotifier_on_packet);
+    if (!nay_injection_notice_install()) return false;
     g_client.running = true;
     return true;
 }
@@ -104,6 +125,9 @@ void nay_client_stop(void)
 {
     if (!g_client.running) return;
     nay_module_shutdown_all();
+    nay_injection_notice_set_packet_observer(NULL);
+    nay_injection_notice_uninstall();
+    nay_packet_sender_reset(&g_client.packet_sender);
     g_client.running = false;
 }
 
@@ -137,4 +161,26 @@ void nay_fullbright_set_enabled(bool enabled)
 void nay_fullbright_set_level(float level)
 {
     if (g_client.running) nay_fullbright_level(&g_client.fullbright, level);
+}
+
+bool nay_client_bind_packet_sender(void *client_instance)
+{
+    return g_client.running
+        && nay_packet_sender_bind(&g_client.packet_sender, client_instance);
+}
+
+bool nay_client_can_send_packets(void)
+{
+    return g_client.running && nay_packet_sender_ready(&g_client.packet_sender);
+}
+
+bool nay_client_send_packet(void *packet)
+{
+    return g_client.running && nay_packet_sender_send(&g_client.packet_sender, packet);
+}
+
+bool nay_client_send_packet_to_server(void *packet)
+{
+    return g_client.running
+        && nay_packet_sender_send_to_server(&g_client.packet_sender, packet);
 }

@@ -10,6 +10,7 @@ typedef struct nay_launcher_state {
     bool injection_ready;
     bool fullbright_enabled;
     bool nofire_enabled;
+    bool nohurtcam_enabled;
     nay_injection injection;
 } nay_launcher_state;
 

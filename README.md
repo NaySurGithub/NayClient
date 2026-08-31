@@ -18,6 +18,8 @@ NayClient is a small, injectable utility client for **Minecraft: Bedrock Edition
 If you want a minimal, readable base to build Bedrock modules on — without a heavy C++ SDK — look no further.
 
 - 🧩 **Tiny module framework** — register enable/disable/tick callbacks, toggle at runtime
+- 📡 **Packet sender** — bind a live `ClientInstance` and send constructed Bedrock packets
+- 👥 **PlayerNotifier** — detects `PlayerListPacket` joins/leaves and reports them in-game
 - 🎛️ **Console launcher** — version-gated injection, colored status, live command loop
 - ♻️ **Clean unload** — restores every patch and frees the library on exit
 
@@ -27,7 +29,7 @@ NayClient follows the same model as other Bedrock clients: **per-version signatu
 
 1. **Launcher** (`naylauncher.exe`) checks the Minecraft version, then injects `nayclient.dll` via `VirtualAllocEx` + `WriteProcessMemory` + `CreateRemoteThread(LoadLibraryW)`.
 2. **Client** (`nayclient.dll`) spins a worker thread that waits on named events (`Local\NayClient.*.<pid>`) for toggles and unload.
-3. **Modules** resolve their targets in the live process — a known **vtable RVA** (Fullbright), an **AOB signature** (NoFire), or an **inline hook** on the kill function (AutoGG) — then apply and cleanly revert their patches.
+3. **Modules** resolve their targets in the live process — a known **vtable RVA** (Fullbright) or an **AOB signature** (NoFire) — then apply and cleanly revert their patches.
 
 ## Building
 
@@ -59,7 +61,8 @@ quit                   # disable modules and unload
 include/nay/           public headers
 src/client.c           DllMain, worker thread, client lifecycle
 src/launcher/          console launcher + injector
-src/modules/           module framework + fullbright / nofire / autogg
+src/modules/           module framework + fullbright / nofire / nohurtcam
+src/network/           validated LoopbackPacketSender bridge
 src/platform/          Minecraft version detection
 ```
 
